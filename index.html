@@ -1,196 +1,430 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pi-Strudel</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #1a1a2e;
-      color: #e0e0e0;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-    header {
-      padding: 12px 20px;
-      background: #16213e;
-      border-bottom: 1px solid #0f3460;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    header h1 {
-      font-size: 1.2rem;
-      color: #e94560;
-      font-weight: 600;
-    }
-    header span {
-      font-size: 0.8rem;
-      color: #888;
-    }
-    strudel-editor {
-      flex: 1;
-      display: block;
-    }
-    .controls {
-      padding: 8px 20px;
-      background: #16213e;
-      border-top: 1px solid #0f3460;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 0.8rem;
-    }
-    .controls input[type=range] {
-      width: 200px;
-      accent-color: #e94560;
-    }
-    .controls .val {
-      color: #e94560;
-      min-width: 50px;
-    }
-    .mutes {
-      padding: 8px 20px;
-      background: #16213e;
-      border-bottom: 1px solid #0f3460;
-      display: flex;
-      gap: 6px;
-      font-size: 0.75rem;
-    }
-    .mute-btn {
-      width: 64px;
-      height: 36px;
-      border: 1px solid #0f3460;
-      background: #e94560;
-      color: #fff;
-      font-family: inherit;
-      font-size: 0.7rem;
-      cursor: pointer;
-      border-radius: 3px;
-      font-weight: 600;
-    }
-    .mute-btn.off {
-      background: #2a2a4a;
-      color: #666;
-    }
-  </style>
-  <script src="https://unpkg.com/@strudel/repl@latest"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pi-Strudel</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0a100a;
+  color: #33ff33;
+  font-family: 'Courier New', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Giant Pi background */
+.pi-bg {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: min(80vw, 80vh);
+  color: rgba(0, 255, 0, 0.06);
+  font-family: 'Times New Roman', serif;
+  pointer-events: none;
+  z-index: 0;
+  user-select: none;
+}
+
+/* Top bar: digit display + play/stop */
+.top-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  align-items: stretch;
+}
+
+.digit-display {
+  flex: 1;
+  background: rgba(0, 20, 0, 0.6);
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  border-radius: 6px;
+  padding: 0 16px;
+  font-size: 1.4em;
+  letter-spacing: 4px;
+  color: #20cc20;
+  overflow: hidden;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+}
+.digit-display .current {
+  color: #fff;
+  text-shadow: 0 0 12px #33ff33, 0 0 24px #00cc00;
+  font-weight: bold;
+}
+.digit-display .dot { color: #66ff66; }
+.digit-display .dim { color: #0a550a; }
+
+.transport {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.transport button {
+  background: rgba(0, 255, 0, 0.1);
+  border: 2px solid #1a8a1a;
+  color: #33ff33;
+  font-family: inherit;
+  font-size: 1em;
+  padding: 0 24px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+.transport button:hover {
+  background: rgba(0, 255, 0, 0.25);
+  border-color: #33ff33;
+  color: #fff;
+}
+.transport button:active { transform: scale(0.97); }
+.transport button.active {
+  background: rgba(0, 255, 0, 0.3);
+  border-color: #66ff66;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+}
+
+/* Toggle row */
+.toggles {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 8px;
+  flex-wrap: wrap;
+}
+.toggle-btn {
+  height: 34px;
+  padding: 0 14px;
+  background: rgba(0, 20, 0, 0.5);
+  border: 2px solid #0a550a;
+  border-radius: 5px;
+  color: #1a8a1a;
+  font-family: inherit;
+  font-size: 0.7em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  user-select: none;
+  font-weight: 600;
+}
+.toggle-btn.on {
+  background: rgba(0, 255, 0, 0.15);
+  border-color: #1a8a1a;
+  color: #33ff33;
+  box-shadow: 0 0 12px rgba(0, 255, 0, 0.2);
+}
+.toggle-btn:hover {
+  border-color: #20cc20;
+  color: #33ff33;
+}
+
+/* Sliders row */
+.sliders {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  padding: 0 12px 8px;
+  align-items: center;
+}
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 180px;
+}
+.slider-label {
+  font-size: 0.75em;
+  color: #1a8a1a;
+  flex-shrink: 0;
+}
+.slider-row input[type="range"] {
+  flex: 1;
+  min-width: 60px;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  background: #0a200a;
+  border-radius: 3px;
+  outline: none;
+}
+.slider-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #1a8a1a;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #33ff33;
+}
+.slider-row input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #1a8a1a;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid #33ff33;
+}
+.slider-value {
+  font-size: 0.75em;
+  color: #20cc20;
+  min-width: 36px;
+}
+
+/* Strudel editor — full width, fill remaining space */
+strudel-editor { display: none; }
+strudel-editor + div {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+}
+
+footer {
+  position: relative;
+  z-index: 1;
+  padding: 4px 12px;
+  opacity: 0.4;
+  font-size: 11px;
+  text-align: right;
+}
+footer a { color: #33ff33; text-decoration: none; }
+
+@media (max-width: 500px) {
+  .transport button { padding: 0 14px; font-size: 0.85em; }
+  .digit-display { font-size: 1.1em; letter-spacing: 2px; }
+  .slider-row { min-width: 140px; }
+}
+</style>
+<script src="https://unpkg.com/@strudel/repl@latest"></script>
 </head>
 <body>
-  <header>
-    <h1>Pi-Strudel</h1>
-    <span>live-coding with digits of pi</span>
-  </header>
-  <div class="mutes">
-    <button class="mute-btn" data-ch="kick">Kick</button>
-    <button class="mute-btn" data-ch="clap">Clap</button>
-    <button class="mute-btn" data-ch="bass">Bass</button>
-    <button class="mute-btn" data-ch="synthA">Synth A</button>
-    <button class="mute-btn" data-ch="synthB">Synth B</button>
-    <button class="mute-btn" data-ch="texture">Texture</button>
-    <button class="mute-btn" data-ch="vox">Vox (Pi)</button>
-  </div>
-  <div class="controls">
-    <label>Pi offset:</label>
-    <input type="range" id="piOffset" min="-400" max="400" value="85" step="1">
-    <span class="val" id="piOffsetVal">85 ms</span>
 
-    <label>Play:</label>
-    <input type="range" id="piPlay" min="1" max="8" value="4" step="1">
-    <span class="val" id="piPlayVal">4</span>
+<div class="pi-bg">&pi;</div>
 
-    <label>Silence:</label>
-    <input type="range" id="piSilence" min="0" max="8" value="4" step="1">
-    <span class="val" id="piSilenceVal">4</span>
+<div class="top-bar">
+  <div class="digit-display" id="digitDisplay">3.14159265358979323846...</div>
+  <div class="transport">
+    <button id="btnPlayStop" onclick="strudelToggle()">&#9654; PLAY</button>
+    <button id="btnShare" onclick="shareState()">SHARE</button>
   </div>
-  <script>
-    window._mutes = {kick:true, clap:true, bass:true, synthA:true, synthB:true, texture:true, vox:true};
-    document.querySelectorAll('.mute-btn').forEach(btn => {
-      btn.addEventListener('click', function() {
-        const ch = this.dataset.ch;
-        window._mutes[ch] = !window._mutes[ch];
-        this.classList.toggle('off', !window._mutes[ch]);
-      });
+</div>
+
+<div class="toggles">
+  <button class="toggle-btn on" data-ch="kick">KICK</button>
+  <button class="toggle-btn on" data-ch="clap">CLAP</button>
+  <button class="toggle-btn on" data-ch="bass">BASS</button>
+  <button class="toggle-btn on" data-ch="synthA">SYN A</button>
+  <button class="toggle-btn on" data-ch="synthB">SYN B</button>
+  <button class="toggle-btn on" data-ch="texture">TEXTR</button>
+  <button class="toggle-btn on" data-ch="vox">VOX</button>
+</div>
+
+<div class="sliders">
+  <div class="slider-row">
+    <span class="slider-label">Offset</span>
+    <input type="range" min="-400" max="400" value="85" step="1" id="piOffset">
+    <span class="slider-value" id="piOffsetVal">85 ms</span>
+  </div>
+  <div class="slider-row">
+    <span class="slider-label">Play</span>
+    <input type="range" min="1" max="8" value="4" step="1" id="piPlay">
+    <span class="slider-value" id="piPlayVal">4</span>
+  </div>
+  <div class="slider-row">
+    <span class="slider-label">Silence</span>
+    <input type="range" min="0" max="8" value="4" step="1" id="piSilence">
+    <span class="slider-value" id="piSilenceVal">4</span>
+  </div>
+</div>
+
+<script>
+  window._mutes = {kick:true, clap:true, bass:true, synthA:true, synthB:true, texture:true, vox:true};
+  window._piOffsetMs = 85 / 1000;
+  window._piPlayBeats = 4;
+  window._piSilenceBeats = 4;
+  window._piPos = 0;
+  window._piBuffer = [];
+
+  document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const ch = this.dataset.ch;
+      window._mutes[ch] = !window._mutes[ch];
+      this.classList.toggle('on', window._mutes[ch]);
     });
-    window._piOffsetMs = 85 / 1000;
-    window._piPlayBeats = 4;
-    window._piSilenceBeats = 4;
-    document.getElementById('piOffset').addEventListener('input', function() {
-      window._piOffsetMs = Number(this.value) / 1000;
-      document.getElementById('piOffsetVal').textContent = this.value + ' ms';
-    });
-    document.getElementById('piPlay').addEventListener('input', function() {
-      window._piPlayBeats = Number(this.value);
-      document.getElementById('piPlayVal').textContent = this.value;
-    });
-    document.getElementById('piSilence').addEventListener('input', function() {
-      window._piSilenceBeats = Number(this.value);
-      document.getElementById('piSilenceVal').textContent = this.value;
-    });
-  </script>
-  <strudel-editor>
-    <!--
+  });
+
+  document.getElementById('piOffset').addEventListener('input', function() {
+    window._piOffsetMs = Number(this.value) / 1000;
+    document.getElementById('piOffsetVal').textContent = this.value + ' ms';
+  });
+  document.getElementById('piPlay').addEventListener('input', function() {
+    window._piPlayBeats = Number(this.value);
+    document.getElementById('piPlayVal').textContent = this.value;
+  });
+  document.getElementById('piSilence').addEventListener('input', function() {
+    window._piSilenceBeats = Number(this.value);
+    document.getElementById('piSilenceVal').textContent = this.value;
+  });
+
+  /* Play/Stop via strudel-editor.editor (StrudelMirror API) */
+  let _playing = false;
+  function strudelToggle() {
+    const el = document.querySelector('strudel-editor');
+    const btn = document.getElementById('btnPlayStop');
+    if (_playing) {
+      if (el && el.editor) el.editor.stop();
+      if (window._piInterval) { clearInterval(window._piInterval); window._piInterval = null; }
+      btn.innerHTML = '&#9654; PLAY';
+      btn.classList.remove('active');
+      _playing = false;
+    } else {
+      if (el && el.editor) el.editor.evaluate();
+      btn.innerHTML = '&#9632; STOP';
+      btn.classList.add('active');
+      _playing = true;
+    }
+  }
+
+  /* Share: compress state into URL hash */
+  async function deflate(str) {
+    const s = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(s).arrayBuffer());
+  }
+  async function inflate(bytes) {
+    const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(s).text();
+  }
+  function toB64Url(bytes) {
+    let b = '';
+    for (let i = 0; i < bytes.length; i++) b += String.fromCharCode(bytes[i]);
+    return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function fromB64Url(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(s);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  async function shareState() {
+    const el = document.querySelector('strudel-editor');
+    const state = {
+      m: window._mutes,
+      o: Number(document.getElementById('piOffset').value),
+      p: Number(document.getElementById('piPlay').value),
+      s: Number(document.getElementById('piSilence').value),
+      c: (el && el.editor) ? el.editor.code : ''
+    };
+    const compressed = await deflate(JSON.stringify(state));
+    const hash = toB64Url(compressed);
+    const url = location.origin + location.pathname + '#' + hash;
+    history.replaceState(null, '', '#' + hash);
+    await navigator.clipboard.writeText(url);
+    const btn = document.getElementById('btnShare');
+    btn.textContent = 'COPIED';
+    setTimeout(() => { btn.textContent = 'SHARE'; }, 1500);
+  }
+
+  async function restoreFromHash() {
+    const hash = location.hash.slice(1);
+    if (!hash) return;
+    try {
+      const bytes = fromB64Url(hash);
+      const json = await inflate(bytes);
+      const state = JSON.parse(json);
+
+      /* restore mutes */
+      if (state.m) {
+        window._mutes = state.m;
+        document.querySelectorAll('.toggle-btn').forEach(btn => {
+          const ch = btn.dataset.ch;
+          if (ch in state.m) btn.classList.toggle('on', state.m[ch]);
+        });
+      }
+      /* restore sliders */
+      if (state.o != null) {
+        document.getElementById('piOffset').value = state.o;
+        document.getElementById('piOffsetVal').textContent = state.o + ' ms';
+        window._piOffsetMs = state.o / 1000;
+      }
+      if (state.p != null) {
+        document.getElementById('piPlay').value = state.p;
+        document.getElementById('piPlayVal').textContent = state.p;
+        window._piPlayBeats = state.p;
+      }
+      if (state.s != null) {
+        document.getElementById('piSilence').value = state.s;
+        document.getElementById('piSilenceVal').textContent = state.s;
+        window._piSilenceBeats = state.s;
+      }
+      /* restore code — wait for editor to initialize */
+      if (state.c) {
+        const el = document.querySelector('strudel-editor');
+        function trySetCode() {
+          if (el && el.editor) { el.editor.setCode(state.c); return; }
+          setTimeout(trySetCode, 200);
+        }
+        trySetCode();
+      }
+    } catch (e) {
+      console.warn('Failed to restore from hash:', e);
+    }
+  }
+  restoreFromHash();
+
+  /* Digit display updater — fit one line, skip if unchanged */
+  let _lastPiPos = -1;
+  function updateDigitDisplay() {
+    const buf = window._piBuffer;
+    const pos = window._piPos;
+    if (!buf || buf.length === 0 || pos === _lastPiPos) return;
+    _lastPiPos = pos;
+
+    const el = document.getElementById('digitDisplay');
+    const charW = parseFloat(getComputedStyle(el).fontSize) * 0.65 + 4;
+    const maxChars = Math.floor((el.clientWidth - 32) / charW);
+    const past = Math.min(pos, Math.floor(maxChars * 0.4));
+    const start = Math.max(0, pos - past);
+    const end = Math.min(buf.length, start + maxChars);
+    let html = '';
+    const skip = (start === 0) ? 1 : 0;
+    if (start === 0) html += '<span class="dot">3.</span>';
+    for (let i = start + skip; i < end; i++) {
+      if (i === pos - 1) {
+        html += '<span class="current">' + buf[i] + '</span>';
+      } else if (i < pos) {
+        html += '<span class="dim">' + buf[i] + '</span>';
+      } else {
+        html += buf[i];
+      }
+    }
+    el.innerHTML = html;
+  }
+  setInterval(updateDigitDisplay, 100);
+</script>
+
+<strudel-editor>
+  <!--
 const cps = 220 * 0.25 / 60
 setCps(cps)
-
-/* pi digit stream — Web Audio scheduler (lightweight, infinite) */
-const piBase = 'https:' + String.fromCharCode(47,47) + 'api.pi.delivery/v1/pi'
-const piBuffer = []
-let piFetching = false
-async function piFetch() {
-  if (piFetching) return
-  piFetching = true
-  const url = piBase + '?start=' + piBuffer.length + '&numberOfDigits=1000'
-  const { content } = await (await fetch(url)).json()
-  piBuffer.push(...Array.from(content, Number))
-  piFetching = false
-}
-
-const ac = getAudioContext()
-const [digitBuffers] = await Promise.all([
-  Promise.all(Array.from({length: 10}, (_, i) =>
-    fetch('./samples/' + i + '.mp3')
-      .then(r => r.arrayBuffer())
-      .then(ab => ac.decodeAudioData(ab))
-  )),
-  piFetch()
-])
-
-let piPos = 0
-let piNextTime = ac.currentTime + 0.5
-let piBeatCount = 0
-const dpc = 4 /* digits per cycle */
-const piSpeed = 1 / (cps * dpc) /* synced to strudel tempo */
-const piVol = 0.5
-
-function schedulePi() {
-  while (piNextTime < ac.currentTime + 0.3) {
-    const playB = window._piPlayBeats || 4
-    const silB = window._piSilenceBeats || 0
-    const totalB = playB + silB
-    const beatInPhrase = piBeatCount % totalB
-    const isSilent = beatInPhrase >= playB
-
-    if (!isSilent && (window._mutes || {}).vox !== false) {
-      if (piPos >= piBuffer.length - 100) piFetch()
-      const d = piBuffer[piPos % piBuffer.length]
-      piPos++
-      const src = ac.createBufferSource()
-      src.buffer = digitBuffers[d]
-      const g = ac.createGain()
-      g.gain.value = piVol
-      src.connect(g).connect(ac.destination)
-      src.start(piNextTime + (window._piOffsetMs || 0))
-    }
-    piBeatCount++
-    piNextTime += piSpeed
-  }
-}
-if (window._piInterval) clearInterval(window._piInterval)
-window._piInterval = setInterval(schedulePi, 100)
 
 function mg(ch, vol) {
   return pure(vol).fmap(v => (window._mutes || {})[ch] !== false ? v : 0)
@@ -224,7 +458,70 @@ $: s("<z_noise ~ ~ ~>")
   .lpf(sine.rangex(800, 10000))
   .delay(".25").delayfeedback(.4).shape(.2)
   .gain(mg('texture', .2))
-    -->
-  </strudel-editor>
+
+/* ====== pi digit stream (Web Audio scheduler) ====== */
+const piBase = 'https:' + String.fromCharCode(47,47) + 'api.pi.delivery/v1/pi'
+const piBuffer = []
+let piFetching = false
+async function piFetch() {
+  if (piFetching) return
+  piFetching = true
+  const url = piBase + '?start=' + piBuffer.length + '&numberOfDigits=1000'
+  const { content } = await (await fetch(url)).json()
+  piBuffer.push(...Array.from(content, Number))
+  window._piBuffer = piBuffer
+  piFetching = false
+}
+
+const ac = getAudioContext()
+const [digitBuffers] = await Promise.all([
+  Promise.all(Array.from({length: 10}, (_, i) =>
+    fetch('./samples/' + i + '.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+  )),
+  piFetch()
+])
+
+let piPos = 0
+let piNextTime = ac.currentTime + 0.5
+let piBeatCount = 0
+const dpc = 4 /* digits per cycle */
+const piSpeed = 1 / (cps * dpc) /* synced to strudel tempo */
+const piVol = 0.5
+
+function schedulePi() {
+  while (piNextTime < ac.currentTime + 0.3) {
+    const playB = window._piPlayBeats || 4
+    const silB = window._piSilenceBeats || 0
+    const totalB = playB + silB
+    const beatInPhrase = piBeatCount % totalB
+    const isSilent = beatInPhrase >= playB
+
+    if (!isSilent && (window._mutes || {}).vox !== false) {
+      if (piPos >= piBuffer.length - 100) piFetch()
+      const d = piBuffer[piPos % piBuffer.length]
+      piPos++
+      window._piPos = piPos
+      const src = ac.createBufferSource()
+      src.buffer = digitBuffers[d]
+      const g = ac.createGain()
+      g.gain.value = piVol
+      src.connect(g).connect(ac.destination)
+      src.start(piNextTime + (window._piOffsetMs || 0))
+    }
+    piBeatCount++
+    piNextTime += piSpeed
+  }
+}
+if (window._piInterval) clearInterval(window._piInterval)
+window._piInterval = setInterval(schedulePi, 100)
+  -->
+</strudel-editor>
+
+<footer>
+  <a href="https://github.com/serg123e/pi-strudel" target="_blank" rel="noopener">GitHub</a>
+</footer>
+
 </body>
 </html>
