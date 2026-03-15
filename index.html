@@ -480,24 +480,6 @@ footer a { color: #33ff33; text-decoration: none; }
   }
   restoreFromHash();
 
-  /* Fallback: on some mobile browsers (Android Chrome) the strudel-editor
-     web component fails to extract code from HTML comments, leaving the
-     editor empty.  Detect this and set the default code programmatically. */
-  if (!location.hash.slice(1)) {
-    const _el = document.querySelector('strudel-editor');
-    let _r = 0;
-    (function _ensureCode() {
-      if (_el && _el.editor) {
-        if (!_el.editor.code || !_el.editor.code.trim()) {
-          _el.editor.setCode(_el._defaultCode);
-        }
-        return;
-      }
-      if (++_r > 50) return;
-      setTimeout(_ensureCode, 200);
-    })();
-  }
-
   /* Digit display updater — fit one line, skip if unchanged */
   let _lastPiPos = -1;
   function updateDigitDisplay() {
@@ -636,6 +618,24 @@ function schedulePi() {
 if (window._piInterval) clearInterval(window._piInterval)
 window._piInterval = setInterval(schedulePi, 100)
 `.trim();
+
+  /* Ensure editor shows default code — the strudel-editor web component
+     may start empty (e.g. on Android Chrome, or when no HTML comment is
+     present).  Poll until the editor initialises, then inject _defaultCode. */
+  if (!location.hash.slice(1)) {
+    var _el = document.getElementById('strudelEd');
+    var _r = 0;
+    (function _ensureCode() {
+      if (_el && _el.editor) {
+        if (!_el.editor.code || !_el.editor.code.trim()) {
+          _el.editor.setCode(_el._defaultCode);
+        }
+        return;
+      }
+      if (++_r > 50) return;
+      setTimeout(_ensureCode, 200);
+    })();
+  }
 </script>
 
 <footer>
