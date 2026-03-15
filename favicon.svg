@@ -1,4 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="8" fill="#0a100a"/>
-  <text x="32" y="50" text-anchor="middle" font-family="Times New Roman, serif" font-size="48" fill="#33ff33">&pi;</text>
+  <circle cx="32" cy="32" r="30" fill="#000000"/>
+  <g fill="#00ff41">
+    <!-- horizontal bar -->
+    <rect x="14" y="16" width="36" height="5" rx="2"/>
+    <!-- left leg -->
+    <rect x="20" y="16" width="5" height="32" rx="2"/>
+    <!-- right leg -->
+    <rect x="35" y="16" width="5" height="32" rx="2"/>
+  </g>
 </svg>
