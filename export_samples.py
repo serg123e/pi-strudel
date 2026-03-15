@@ -88,8 +88,9 @@ def main():
                                             frame_rate=SAMPLE_RATE)
         seg = seg.fade_out(40)
 
-        # Export as individual WAV file
+        # Export as individual WAV and MP3 files
         seg.export(f'samples/{d}.wav', format='wav')
+        seg.export(f'samples/{d}.mp3', format='mp3')
 
         # Export as WAV to base64
         wav_buf = io.BytesIO()

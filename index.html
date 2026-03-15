@@ -152,7 +152,7 @@ async function piFetch() {
 const ac = getAudioContext()
 const [digitBuffers] = await Promise.all([
   Promise.all(Array.from({length: 10}, (_, i) =>
-    fetch('./samples/' + i + '.wav')
+    fetch('./samples/' + i + '.mp3')
       .then(r => r.arrayBuffer())
       .then(ab => ac.decodeAudioData(ab))
   )),
