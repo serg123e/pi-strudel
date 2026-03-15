@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pi-Strudel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 20px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 {
+      font-size: 1.2rem;
+      color: #e94560;
+      font-weight: 600;
+    }
+    header span {
+      font-size: 0.8rem;
+      color: #888;
+    }
+    strudel-editor {
+      flex: 1;
+      display: block;
+    }
+    .controls {
+      padding: 8px 20px;
+      background: #16213e;
+      border-top: 1px solid #0f3460;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.8rem;
+    }
+    .controls input[type=range] {
+      width: 200px;
+      accent-color: #e94560;
+    }
+    .controls .val {
+      color: #e94560;
+      min-width: 50px;
+    }
+    .mutes {
+      padding: 8px 20px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      display: flex;
+      gap: 6px;
+      font-size: 0.75rem;
+    }
+    .mute-btn {
+      width: 64px;
+      height: 36px;
+      border: 1px solid #0f3460;
+      background: #e94560;
+      color: #fff;
+      font-family: inherit;
+      font-size: 0.7rem;
+      cursor: pointer;
+      border-radius: 3px;
+      font-weight: 600;
+    }
+    .mute-btn.off {
+      background: #2a2a4a;
+      color: #666;
+    }
+  </style>
+  <script src="https://unpkg.com/@strudel/repl@latest"></script>
+</head>
+<body>
+  <header>
+    <h1>Pi-Strudel</h1>
+    <span>live-coding with digits of pi</span>
+  </header>
+  <div class="mutes">
+    <button class="mute-btn" data-ch="kick">Kick</button>
+    <button class="mute-btn" data-ch="clap">Clap</button>
+    <button class="mute-btn" data-ch="bass">Bass</button>
+    <button class="mute-btn" data-ch="synthA">Synth A</button>
+    <button class="mute-btn" data-ch="synthB">Synth B</button>
+    <button class="mute-btn" data-ch="texture">Texture</button>
+    <button class="mute-btn" data-ch="vox">Vox (Pi)</button>
+  </div>
+  <div class="controls">
+    <label>Pi offset:</label>
+    <input type="range" id="piOffset" min="-400" max="400" value="85" step="1">
+    <span class="val" id="piOffsetVal">85 ms</span>
+
+    <label>Play:</label>
+    <input type="range" id="piPlay" min="1" max="8" value="4" step="1">
+    <span class="val" id="piPlayVal">4</span>
+
+    <label>Silence:</label>
+    <input type="range" id="piSilence" min="0" max="8" value="4" step="1">
+    <span class="val" id="piSilenceVal">4</span>
+  </div>
+  <script>
+    window._mutes = {kick:true, clap:true, bass:true, synthA:true, synthB:true, texture:true, vox:true};
+    document.querySelectorAll('.mute-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const ch = this.dataset.ch;
+        window._mutes[ch] = !window._mutes[ch];
+        this.classList.toggle('off', !window._mutes[ch]);
+      });
+    });
+    window._piOffsetMs = 85 / 1000;
+    window._piPlayBeats = 4;
+    window._piSilenceBeats = 4;
+    document.getElementById('piOffset').addEventListener('input', function() {
+      window._piOffsetMs = Number(this.value) / 1000;
+      document.getElementById('piOffsetVal').textContent = this.value + ' ms';
+    });
+    document.getElementById('piPlay').addEventListener('input', function() {
+      window._piPlayBeats = Number(this.value);
+      document.getElementById('piPlayVal').textContent = this.value;
+    });
+    document.getElementById('piSilence').addEventListener('input', function() {
+      window._piSilenceBeats = Number(this.value);
+      document.getElementById('piSilenceVal').textContent = this.value;
+    });
+  </script>
+  <strudel-editor>
+    <!--
+const cps = 220 * 0.25 / 60
+setCps(cps)
+
+/* pi digit stream — Web Audio scheduler (lightweight, infinite) */
+const piBase = 'https:' + String.fromCharCode(47,47) + 'api.pi.delivery/v1/pi'
+const piBuffer = []
+let piFetching = false
+async function piFetch() {
+  if (piFetching) return
+  piFetching = true
+  const url = piBase + '?start=' + piBuffer.length + '&numberOfDigits=1000'
+  const { content } = await (await fetch(url)).json()
+  piBuffer.push(...Array.from(content, Number))
+  piFetching = false
+}
+
+const ac = getAudioContext()
+const [digitBuffers] = await Promise.all([
+  Promise.all(Array.from({length: 10}, (_, i) =>
+    fetch('./samples/' + i + '.wav')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+  )),
+  piFetch()
+])
+
+let piPos = 0
+let piNextTime = ac.currentTime + 0.5
+let piBeatCount = 0
+const dpc = 4 /* digits per cycle */
+const piSpeed = 1 / (cps * dpc) /* synced to strudel tempo */
+const piVol = 0.5
+
+function schedulePi() {
+  while (piNextTime < ac.currentTime + 0.3) {
+    const playB = window._piPlayBeats || 4
+    const silB = window._piSilenceBeats || 0
+    const totalB = playB + silB
+    const beatInPhrase = piBeatCount % totalB
+    const isSilent = beatInPhrase >= playB
+
+    if (!isSilent && (window._mutes || {}).vox !== false) {
+      if (piPos >= piBuffer.length - 100) piFetch()
+      const d = piBuffer[piPos % piBuffer.length]
+      piPos++
+      const src = ac.createBufferSource()
+      src.buffer = digitBuffers[d]
+      const g = ac.createGain()
+      g.gain.value = piVol
+      src.connect(g).connect(ac.destination)
+      src.start(piNextTime + (window._piOffsetMs || 0))
+    }
+    piBeatCount++
+    piNextTime += piSpeed
+  }
+}
+if (window._piInterval) clearInterval(window._piInterval)
+window._piInterval = setInterval(schedulePi, 100)
+
+function mg(ch, vol) {
+  return pure(vol).fmap(v => (window._mutes || {})[ch] !== false ? v : 0)
+}
+
+/* percussion */
+$: s("bd!2 mt ~").bank("tr909").off(1/4, x=>x)
+  .gain(mg('kick', .39))
+$: s("~ cp(2,8)").bank("tr909").off(1/32, x=>x)
+  .gain(mg('clap', .38))
+
+/* sub bass */
+$: note("c1!4 c1!4 c1!4 c1!4").sound("sine")
+  .lpf(saw.slow(2).rangex(120, 2400))
+  .decay(1).release(.5)
+  .gain(mg('bass', 0.5))
+
+/* synth layers */
+$: note("<[c2 c3]*4 [ab1 ab2]*4 [bb2 bb3]*4 [g2 g3]*4>").color("cyan")
+  .sound("z_tan").lpf("<800 200 1200 400> 1000 200 400, 200 <400 2000>")
+  .pan(0.1)
+  .gain(mg('synthA', .9))
+
+$: note("<[c2 c3]*4 [ab1 ab2]*4 [bb2 bb3]*4 [g2 g3]*4>").color("red")
+  .sound("z_square").lpf("<800 200 1200 400> 1000 200 400, 200 <400 2000>")
+  .rev().pan(0.9)
+  .gain(mg('synthB', .9))
+
+/* texture */
+$: s("<z_noise ~ ~ ~>")
+  .lpf(sine.rangex(800, 10000))
+  .delay(".25").delayfeedback(.4).shape(.2)
+  .gain(mg('texture', .2))
+    -->
+  </strudel-editor>
+</body>
+</html>
