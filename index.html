@@ -339,6 +339,12 @@ footer a { color: #33ff33; text-decoration: none; }
       btn.classList.remove('active');
       _playing = false;
     } else {
+      /* iOS Safari: AudioContext must be resumed inside a user-gesture
+         callback, otherwise all audio is silently blocked. */
+      try {
+        var ac = typeof getAudioContext === 'function' && getAudioContext();
+        if (ac && ac.state === 'suspended') ac.resume();
+      } catch(_){}
       if (el && el.editor) el.editor.evaluate();
       btn.innerHTML = '&#9632; STOP';
       btn.classList.add('active');
