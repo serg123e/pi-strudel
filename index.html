@@ -450,6 +450,24 @@ footer a { color: #33ff33; text-decoration: none; }
   }
   restoreFromHash();
 
+  /* Fallback: on some mobile browsers (Android Chrome) the strudel-editor
+     web component fails to extract code from HTML comments, leaving the
+     editor empty.  Detect this and set the default code programmatically. */
+  if (!location.hash.slice(1)) {
+    const _el = document.querySelector('strudel-editor');
+    let _r = 0;
+    (function _ensureCode() {
+      if (_el && _el.editor) {
+        if (!_el.editor.code || !_el.editor.code.trim()) {
+          _el.editor.setCode(_el._defaultCode);
+        }
+        return;
+      }
+      if (++_r > 50) return;
+      setTimeout(_ensureCode, 200);
+    })();
+  }
+
   /* Digit display updater — fit one line, skip if unchanged */
   let _lastPiPos = -1;
   function updateDigitDisplay() {
@@ -481,7 +499,7 @@ footer a { color: #33ff33; text-decoration: none; }
   setInterval(updateDigitDisplay, 100);
 </script>
 
-<strudel-editor>
+<strudel-editor id="strudelEd">
   <!--
 const cps = 220 * 0.25 / 60
 setCps(cps)
@@ -578,6 +596,103 @@ if (window._piInterval) clearInterval(window._piInterval)
 window._piInterval = setInterval(schedulePi, 100)
   -->
 </strudel-editor>
+<script>
+  document.getElementById('strudelEd')._defaultCode = `
+const cps = 220 * 0.25 / 60
+setCps(cps)
+
+function mg(ch, vol) {
+  return pure(vol).fmap(v => (window._mutes || {})[ch] !== false ? v : 0)
+}
+
+/* percussion */
+$: s("bd!2 mt ~").bank("tr909").off(1/4, x=>x)
+  .gain(mg('kick', .39))
+$: s("~ cp(2,8)").bank("tr909").off(1/32, x=>x)
+  .gain(mg('clap', .38))
+
+/* sub bass */
+$: note("c1!4 c1!4 c1!4 c1!4").sound("sine")
+  .lpf(saw.slow(2).rangex(120, 2400))
+  .decay(1).release(.5)
+  .gain(mg('bass', 0.5))
+
+/* synth layers */
+$: note("<[c2 c3]*4 [ab1 ab2]*4 [bb2 bb3]*4 [g2 g3]*4>").color("cyan")
+  .sound("z_tan").lpf("<800 200 1200 400> 1000 200 400, 200 <400 2000>")
+  .pan(0.1)
+  .gain(mg('synthA', .9))
+
+$: note("<[c2 c3]*4 [ab1 ab2]*4 [bb2 bb3]*4 [g2 g3]*4>").color("red")
+  .sound("z_square").lpf("<800 200 1200 400> 1000 200 400, 200 <400 2000>")
+  .rev().pan(0.9)
+  .gain(mg('synthB', .9))
+
+/* texture */
+$: s("<z_noise ~ ~ ~>")
+  .lpf(sine.rangex(800, 10000))
+  .delay(".25").delayfeedback(.4).shape(.2)
+  .gain(mg('texture', .2))
+
+/* ====== pi digit stream (Web Audio scheduler) ====== */
+const piBase = 'https:' + String.fromCharCode(47,47) + 'api.pi.delivery/v1/pi'
+const piBuffer = []
+let piFetching = false
+async function piFetch() {
+  if (piFetching) return
+  piFetching = true
+  const url = piBase + '?start=' + piBuffer.length + '&numberOfDigits=1000'
+  const { content } = await (await fetch(url)).json()
+  piBuffer.push(...Array.from(content, Number))
+  window._piBuffer = piBuffer
+  piFetching = false
+}
+
+const ac = getAudioContext()
+const [digitBuffers] = await Promise.all([
+  Promise.all(Array.from({length: 10}, (_, i) =>
+    fetch('./samples/' + i + '.mp3')
+      .then(r => r.arrayBuffer())
+      .then(ab => ac.decodeAudioData(ab))
+  )),
+  piFetch()
+])
+
+let piPos = 0
+let piNextTime = ac.currentTime + 0.5
+let piBeatCount = 0
+const dpc = 4 /* digits per cycle */
+const piSpeed = 1 / (cps * dpc) /* synced to strudel tempo */
+const piVol = window._piVoiceVol ?? 0.5
+
+function schedulePi() {
+  while (piNextTime < ac.currentTime + 0.3) {
+    const playB = window._piPlayBeats || 4
+    const silB = window._piSilenceBeats || 0
+    const totalB = playB + silB
+    const beatInPhrase = piBeatCount % totalB
+    const isSilent = beatInPhrase >= playB
+
+    if (!isSilent && (window._mutes || {}).vox !== false) {
+      if (piPos >= piBuffer.length - 100) piFetch()
+      const d = piBuffer[piPos % piBuffer.length]
+      piPos++
+      window._piPos = piPos
+      const src = ac.createBufferSource()
+      src.buffer = digitBuffers[d]
+      const g = ac.createGain()
+      g.gain.value = window._piVoiceVol ?? piVol
+      src.connect(g).connect(ac.destination)
+      src.start(piNextTime + (window._piOffsetMs || 0))
+    }
+    piBeatCount++
+    piNextTime += piSpeed
+  }
+}
+if (window._piInterval) clearInterval(window._piInterval)
+window._piInterval = setInterval(schedulePi, 100)
+`.trim();
+</script>
 
 <footer>
   <a href="https://github.com/serg123e/pi-strudel" target="_blank" rel="noopener">GitHub</a>
