@@ -339,12 +339,36 @@ footer a { color: #33ff33; text-decoration: none; }
       btn.classList.remove('active');
       _playing = false;
     } else {
-      /* iOS Safari: AudioContext must be resumed inside a user-gesture
-         callback, otherwise all audio is silently blocked. */
-      try {
-        var ac = typeof getAudioContext === 'function' && getAudioContext();
-        if (ac && ac.state === 'suspended') ac.resume();
-      } catch(_){}
+      /* iOS Safari: unlock Web Audio by playing a silent buffer and
+         resuming every AudioContext we can find — must happen
+         synchronously inside the user-gesture call stack. */
+      (function unlockAudio() {
+        var CtxClass = window.AudioContext || window.webkitAudioContext;
+        /* 1. Resume strudel's shared context if available */
+        try {
+          var sac = typeof getAudioContext === 'function' && getAudioContext();
+          if (sac && sac.state === 'suspended') sac.resume();
+        } catch(_){}
+        /* 2. Play a silent buffer through a fresh context (iOS unlock trick) */
+        if (CtxClass) {
+          try {
+            var tmp = new CtxClass();
+            var buf = tmp.createBuffer(1, 1, 22050);
+            var src = tmp.createBufferSource();
+            src.buffer = buf;
+            src.connect(tmp.destination);
+            src.start(0);
+            if (tmp.state === 'suspended') tmp.resume();
+          } catch(_){}
+        }
+        /* 3. Also try an <audio> element play (unlocks on some iOS versions) */
+        try {
+          var a = new Audio();
+          a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+          a.volume = 0;
+          a.play().catch(function(){});
+        } catch(_){}
+      })();
       if (el && el.editor) el.editor.evaluate();
       btn.innerHTML = '&#9632; STOP';
       btn.classList.add('active');
