@@ -263,19 +263,24 @@ footer a { color: #33ff33; text-decoration: none; }
 
 <div class="sliders">
   <div class="slider-row">
-    <span class="slider-label">Offset</span>
-    <input type="range" min="-400" max="400" value="85" step="1" id="piOffset">
-    <span class="slider-value" id="piOffsetVal">85 ms</span>
+    <span class="slider-label">Voice</span>
+    <input type="range" min="0" max="100" value="50" step="1" id="piVoiceVol" autocomplete="off">
+    <span class="slider-value" id="piVoiceVolVal">50%</span>
   </div>
   <div class="slider-row">
     <span class="slider-label">Play</span>
-    <input type="range" min="1" max="8" value="4" step="1" id="piPlay">
+    <input type="range" min="1" max="8" value="4" step="1" id="piPlay" autocomplete="off">
     <span class="slider-value" id="piPlayVal">4</span>
   </div>
   <div class="slider-row">
     <span class="slider-label">Silence</span>
-    <input type="range" min="0" max="8" value="4" step="1" id="piSilence">
+    <input type="range" min="0" max="8" value="4" step="1" id="piSilence" autocomplete="off">
     <span class="slider-value" id="piSilenceVal">4</span>
+  </div>
+  <div class="slider-row">
+    <span class="slider-label">Offset</span>
+    <input type="range" min="-400" max="400" value="85" step="1" id="piOffset" autocomplete="off">
+    <span class="slider-value" id="piOffsetVal">85 ms</span>
   </div>
 </div>
 
@@ -289,6 +294,7 @@ footer a { color: #33ff33; text-decoration: none; }
   window._piOffsetMs = 85 / 1000;
   window._piPlayBeats = 4;
   window._piSilenceBeats = 4;
+  window._piVoiceVol = 0.5;
   window._piPos = 0;
   window._piBuffer = [];
 
@@ -311,6 +317,10 @@ footer a { color: #33ff33; text-decoration: none; }
   document.getElementById('piSilence').addEventListener('input', function() {
     window._piSilenceBeats = Number(this.value);
     document.getElementById('piSilenceVal').textContent = this.value;
+  });
+  document.getElementById('piVoiceVol').addEventListener('input', function() {
+    window._piVoiceVol = Number(this.value) / 100;
+    document.getElementById('piVoiceVolVal').textContent = this.value + '%';
   });
 
   /* iOS detection */
@@ -369,6 +379,7 @@ footer a { color: #33ff33; text-decoration: none; }
       o: Number(document.getElementById('piOffset').value),
       p: Number(document.getElementById('piPlay').value),
       s: Number(document.getElementById('piSilence').value),
+      v: Number(document.getElementById('piVoiceVol').value),
       c: (el && el.editor) ? el.editor.code : ''
     };
     const compressed = await deflate(JSON.stringify(state));
@@ -416,6 +427,11 @@ footer a { color: #33ff33; text-decoration: none; }
         document.getElementById('piSilence').value = state.s;
         document.getElementById('piSilenceVal').textContent = state.s;
         window._piSilenceBeats = state.s;
+      }
+      if (state.v != null) {
+        document.getElementById('piVoiceVol').value = state.v;
+        document.getElementById('piVoiceVolVal').textContent = state.v + '%';
+        window._piVoiceVol = state.v / 100;
       }
       /* restore code — wait for editor to initialize */
       if (state.c) {
@@ -532,7 +548,7 @@ let piNextTime = ac.currentTime + 0.5
 let piBeatCount = 0
 const dpc = 4 /* digits per cycle */
 const piSpeed = 1 / (cps * dpc) /* synced to strudel tempo */
-const piVol = 0.5
+const piVol = window._piVoiceVol ?? 0.5
 
 function schedulePi() {
   while (piNextTime < ac.currentTime + 0.3) {
@@ -550,7 +566,7 @@ function schedulePi() {
       const src = ac.createBufferSource()
       src.buffer = digitBuffers[d]
       const g = ac.createGain()
-      g.gain.value = piVol
+      g.gain.value = window._piVoiceVol ?? piVol
       src.connect(g).connect(ac.destination)
       src.start(piNextTime + (window._piOffsetMs || 0))
     }
