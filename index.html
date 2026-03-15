@@ -206,6 +206,31 @@ footer {
 }
 footer a { color: #33ff33; text-decoration: none; }
 
+/* iOS silent mode reminder */
+.ios-hint {
+  position: relative;
+  z-index: 1;
+  background: rgba(0, 40, 0, 0.8);
+  border: 1px solid #1a8a1a;
+  color: #33ff33;
+  font-size: 0.8em;
+  padding: 8px 12px;
+  margin: 0 12px 8px;
+  border-radius: 6px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+.ios-hint .close-hint {
+  background: none;
+  border: none;
+  color: #1a8a1a;
+  font-size: 1.2em;
+  cursor: pointer;
+  padding: 0 4px;
+  margin-left: auto;
+}
+
 @media (max-width: 500px) {
   .transport button { padding: 0 14px; font-size: 0.85em; }
   .digit-display { font-size: 1.1em; letter-spacing: 2px; }
@@ -254,6 +279,11 @@ footer a { color: #33ff33; text-decoration: none; }
   </div>
 </div>
 
+<div class="ios-hint" id="iosHint">
+  Turn off Silent Mode (flip the switch on the side) to hear audio
+  <button class="close-hint" onclick="this.parentElement.style.display='none'">&times;</button>
+</div>
+
 <script>
   window._mutes = {kick:true, clap:true, bass:true, synthA:true, synthB:true, texture:true, vox:true};
   window._piOffsetMs = 85 / 1000;
@@ -283,6 +313,10 @@ footer a { color: #33ff33; text-decoration: none; }
     document.getElementById('piSilenceVal').textContent = this.value;
   });
 
+  /* iOS detection */
+  const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   /* Play/Stop via strudel-editor.editor (StrudelMirror API) */
   let _playing = false;
   function strudelToggle() {
@@ -299,15 +333,19 @@ footer a { color: #33ff33; text-decoration: none; }
       btn.innerHTML = '&#9632; STOP';
       btn.classList.add('active');
       _playing = true;
+      if (_isIOS) document.getElementById('iosHint').style.display = 'flex';
     }
   }
 
-  /* Share: compress state into URL hash */
+  /* Share: compress state into URL hash (with fallback for older Safari) */
+  const _hasCompression = typeof CompressionStream !== 'undefined';
   async function deflate(str) {
+    if (!_hasCompression) return new TextEncoder().encode(str);
     const s = new Blob([str]).stream().pipeThrough(new CompressionStream('deflate-raw'));
     return new Uint8Array(await new Response(s).arrayBuffer());
   }
   async function inflate(bytes) {
+    if (!_hasCompression) return new TextDecoder().decode(bytes);
     const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
     return new Response(s).text();
   }
@@ -337,9 +375,13 @@ footer a { color: #33ff33; text-decoration: none; }
     const hash = toB64Url(compressed);
     const url = location.origin + location.pathname + '#' + hash;
     history.replaceState(null, '', '#' + hash);
-    await navigator.clipboard.writeText(url);
     const btn = document.getElementById('btnShare');
-    btn.textContent = 'COPIED';
+    try {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = 'COPIED';
+    } catch (e) {
+      btn.textContent = 'URL SET';
+    }
     setTimeout(() => { btn.textContent = 'SHARE'; }, 1500);
   }
 
@@ -378,8 +420,10 @@ footer a { color: #33ff33; text-decoration: none; }
       /* restore code — wait for editor to initialize */
       if (state.c) {
         const el = document.querySelector('strudel-editor');
+        let retries = 0;
         function trySetCode() {
           if (el && el.editor) { el.editor.setCode(state.c); return; }
+          if (++retries > 50) return;
           setTimeout(trySetCode, 200);
         }
         trySetCode();
