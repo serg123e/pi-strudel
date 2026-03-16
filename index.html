@@ -533,9 +533,10 @@ $: s("~ cp(2,8)").bank("tr909")
   .gain(muteGate('clap', .38))
 
 /* sub bass */
-const bassNote = slider(41, 24, 59, 1)
+const bassNote = slider(41, 24, 53, 1)
 
 $: note(bassNote)
+  .struct("x x ~ ~ x ~ x ~")
   .sound("sine")
   .lpf(sine.slow(6).rangex(slider(100, 40, 250, 5), slider(170, 80, 400, 5)))
   .decay(slider(0.8, 0.1, 1.5, 0.05))
